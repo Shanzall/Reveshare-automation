@@ -1,0 +1,408 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Automation Master Map</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --card:#121a2b;
+      --muted:#8aa0b6;
+      --text:#e6eef8;
+      --accent:#7aa2ff;
+      --accent-2:#58d3a0;
+      --danger:#ff6b6b;
+      --border:#1f2940;
+      --chip:#1a2338;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:linear-gradient(180deg, #0b1220 0%, #0a0f1a 100%);
+      color:var(--text);
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+      display:flex;
+      flex-direction:column;
+    }
+    header{
+      padding:18px 24px;
+      border-bottom:1px solid var(--border);
+      display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+    }
+    h1{
+      font-size:20px; margin:0; letter-spacing:.2px;
+    }
+    .tag{background:var(--chip); border:1px solid var(--border); padding:6px 10px; border-radius:999px; color:var(--muted); font-size:12px}
+    .container{
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:14px;
+      padding:14px;
+      height:calc(100% - 70px);
+      overflow:hidden;
+    }
+    .panel{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:16px;
+      overflow:hidden;
+      display:flex; flex-direction:column;
+      min-height:0;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .panel header{
+      border-bottom:1px solid var(--border);
+      background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0));
+    }
+    .scroll{overflow:auto; padding:12px}
+    .search{
+      width:100%; background:#0e1626; color:var(--text);
+      border:1px solid var(--border); border-radius:12px; padding:10px 12px;
+      outline:none; font-size:14px;
+    }
+    .tree{list-style:none; padding-left:0; margin:8px 0 0 0}
+    .tree li{margin:2px 0; border-radius:10px}
+    .node{
+      display:flex; align-items:center; gap:10px; padding:8px 10px;
+      border:1px solid var(--border); background:#0e1626; border-radius:12px;
+      cursor:pointer; user-select:none;
+      transition: transform .04s ease;
+    }
+    .node:hover{border-color:#2b3652; transform:translateY(-1px)}
+    .node .bullet{width:8px; height:8px; border-radius:999px; background:var(--accent)}
+    .node.brand .bullet{background:var(--accent)}
+    .node.affiliate .bullet{background:var(--danger)}
+    .node.partner .bullet{background:var(--accent-2)}
+    .node.owner .bullet{background:#f8c35e}
+    .node.disabled{opacity:.6; cursor:not-allowed}
+    .children{margin-left:20px; padding-left:16px; border-left:1px dashed #2b3652; display:none}
+    .node.open + .children{display:block}
+    .small{color:var(--muted); font-size:12px}
+    .toolbar{display:flex; gap:8px; align-items:center}
+    button{
+      background:#0e1626; color:var(--text); border:1px solid var(--border);
+      padding:8px 10px; border-radius:10px; font-size:13px; cursor:pointer;
+    }
+    button:hover{border-color:#2b3652}
+    .detail{padding:16px; display:flex; flex-direction:column; gap:12px}
+    .title{font-size:18px; font-weight:700}
+    .grid{display:grid; grid-template-columns: repeat(2, minmax(220px,1fr)); gap:12px}
+    .card{background:#0e1626; border:1px solid var(--border); border-radius:12px; padding:12px}
+    .card h4{margin:0 0 6px 0; font-size:13px; color:#a8c1ff; letter-spacing:.2px}
+    ul.clean{margin:0; padding-left:16px}
+    code{background:#0b1424; border:1px solid var(--border); padding:2px 6px; border-radius:6px}
+    .footer-note{padding:10px 16px; border-top:1px solid var(--border); color:var(--muted); font-size:12px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Automation Master Map</h1>
+    <span class="tag">Interactive • Click to expand and view details</span>
+    <span class="tag">All data is local to this file</span>
+  </header>
+
+  <div class="container">
+    <section class="panel">
+      <header>
+        <div class="toolbar" style="width:100%">
+          <input id="search" class="search" placeholder="Search automations, tools, triggers…" />
+          <button id="expand">Expand All</button>
+          <button id="collapse">Collapse All</button>
+        </div>
+      </header>
+      <div class="scroll">
+        <ul id="tree" class="tree"></ul>
+      </div>
+      <div class="footer-note">Tip: Click a category to expand its automations. Click an automation to see steps & tools.</div>
+    </section>
+
+    <aside class="panel">
+      <header><div class="toolbar"><strong>Details</strong></div></header>
+      <div id="detail" class="detail">
+        <div class="title">Nothing selected</div>
+        <div class="small">Choose an automation to see triggers, actions, conditions, and the tool stack.</div>
+      </div>
+    </aside>
+  </div>
+
+<script>
+// ---------- DATA MODEL ----------
+const DATA = [
+  {
+    id:"brand", type:"category", label:"Brand", css:"brand",
+    children:[
+      mk("Brand • Welcome sequence","brand_welcome",{
+        trigger:["New brand signs up","Opt-in to marketing"],
+        actions:["Start email/SMS onboarding sequence (Day 0, 2, 5)","Personalize with brand profile fields","CTA: Complete profile & connect store"],
+        tools:["Omnisend or Klaviyo","Zapier (list subscription trigger)","Airtable/DB (brand profile)","Calendly (optional call link)"],
+        conditions:["Skip if already onboarded","Pause if user unsubscribes"]
+      }),
+
+      mk("Brand • Follow up & book a call","brand_followup_call",{
+        trigger:["No call booked within 3 days of signup"],
+        actions:["Send nudge email with Calendly link","If no open within 24h → send SMS","If clicked but no booking → reminder at 48h"],
+        tools:["Klaviyo/Omnisend (behavioral flows)","Calendly","Zapier (Calendly booking → CRM)","Slack (notify rep)"],
+        conditions:["Exit on booking","Throttle per user (1 sequence / 14 days)"]
+      }),
+
+      mk("Brand • Follow up for account setup","brand_account_setup",{
+        trigger:["Account created but not fully configured within 24h"],
+        actions:["How-to email with checklist","In-app tooltip (if applicable)","Offer 15-min setup call"],
+        tools:["Omnisend/Klaviyo","Product tour (e.g., Appcues)","Calendly","Zapier (progress checks)"],
+        conditions:["Exit when all checklist items complete"]
+      }),
+
+      mk("Brand • Payment failed sequence (10%)","brand_payment_failed",{
+        trigger:["Payment failed via Stripe/PG"],
+        actions:["Email #1 with retry link","Wait 48h → auto-retry payment","If still failing → Email #2 + support form","Flag account; notify finance"],
+        tools:["Stripe (webhooks)","Zapier (Webhook → Klaviyo/Omnisend)","Helpdesk (Zendesk/Intercom)","Slack for alerts","Airtable/DB flag"],
+        conditions:["Stop if payment succeeds","Escalate > 7 days fail → account limit"]
+      }),
+
+      mk("Brand • Payout past 7/14/30 days (for affiliates)","brand_payout_recency",{
+        trigger:["Affiliate payout pending > 7/14/30 days"],
+        actions:["Reminder to process payout","Auto-generate payout batch for due affiliates","Notify finance"],
+        tools:["Internal DB/Owner dashboard","Zapier Scheduler","Stripe/PayPal Payouts","Slack"],
+        conditions:["Skip if KYC incomplete","Different templates based on bucket"]
+      }),
+
+      mk("Brand • Update notes v1.3","brand_update_notes",{
+        trigger:["Product or policy updates published"],
+        actions:["Send release notes to brands","Changelog page link","Collect feedback"],
+        tools:["Omnisend/Klaviyo","Notion/Docs as source","Zapier to sync changelog → email"],
+        conditions:["Audience segmented by role/plan"]
+      }),
+
+      mk("Brand • Milestone reward sequence","brand_milestone",{
+        trigger:["Brand crosses revenue/referral milestone"],
+        actions:["Congrats email w/ badge & reward","Unlock coupon/feature","Social proof request"],
+        tools:["DB milestone check (daily job)","Zapier","Klaviyo/Omnisend","Rewardful/Coupon system"],
+        conditions:["One-time per milestone tier"]
+      }),
+
+      mk("Brand • Congrats on X affiliates or $ earned","brand_congrats_affiliates",{
+        trigger:["Affiliates count or earnings cross threshold"],
+        actions:["Send congrats + next-steps playbook","Invite to case study program"],
+        tools:["DB metrics","Klaviyo/Omnisend","Calendly (case study)"],
+        conditions:["Different thresholds bucket (5/10/25 affiliates)"]
+      }),
+
+      mk("Brand • Affiliate sale example","brand_aff_sale_example",{
+        trigger:["Sample affiliate sale created (demo)"],
+        actions:["Send example report to brand","Explain attribution and payout schedule"],
+        tools:["Internal events bus","Email via Omnisend/Klaviyo"],
+        conditions:["Only for sandbox/test brands"]
+      }),
+    ]
+  },
+
+  {
+    id:"affiliate", type:"category", label:"Affiliate", css:"affiliate",
+    note:"CAN’T DO UNTIL SOLUTION IS SOLVED FOR NOT SHARING API W/ OMNISEND, KLAVIYO, ETC.",
+    children:[
+      mk("Affiliate Automations (blocked pending API access)","aff_blocked",{
+        trigger:["—"],
+        actions:["Awaiting solution for data sharing with ESPs"],
+        tools:["TBD (privacy-preserving sync or custom webhook proxy)"],
+        conditions:["Enable once integration approved"]
+      }, true)
+    ]
+  },
+
+  {
+    id:"partner", type:"category", label:"Agency Partner", css:"partner",
+    children:[
+      mk("Partner • Welcome sequence","partner_welcome",{
+        trigger:["New agency partner onboarded"],
+        actions:["Intro sequence + partner portal access","Share resources & playbooks"],
+        tools:["Omnisend/Klaviyo","Partner portal (Notion/Portal tool)"],
+        conditions:["Skip if already active"]
+      }),
+
+      mk("Partner • Follow up & book a call","partner_followup_call",{
+        trigger:["No intro call booked in 3 days"],
+        actions:["Email + SMS nudge with calendar","Slack DM to partner manager"],
+        tools:["Calendly","Klaviyo/Omnisend","Zapier → Slack"],
+        conditions:["Exit on booking"]
+      }),
+
+      mk("Partner • Follow up for account setup","partner_account_setup",{
+        trigger:["Portal account incomplete after 48h"],
+        actions:["Checklist email + help center links","Offer co-setup session"],
+        tools:["Email ESP","Calendly","Zapier (portal status webhook)"],
+        conditions:["Exit when checklist complete"]
+      }),
+
+      mk("Partner • Update notes v1.3","partner_update_notes",{
+        trigger:["Release notes published"],
+        actions:["Send changelog to partners","Invite feedback session"],
+        tools:["ESP","Notion/Docs","Calendly"],
+        conditions:["Segment by region/tier"]
+      }),
+
+      mk("Partner • Blog post / weekly advice","partner_blog",{
+        trigger:["Weekly on Monday 9am IST"],
+        actions:["Send curated advice/blog to partners"],
+        tools:["Zapier Scheduler","RSS → Email automation"],
+        conditions:["Pause during major campaigns"]
+      }),
+
+      mk("Partner • Milestone reward sequence","partner_milestone",{
+        trigger:["Partner’s referred brands cross revenue target"],
+        actions:["Send reward & badge","Elevate to next partner tier"],
+        tools:["DB metrics","ESP","Reward system"],
+        conditions:["One-time per tier"]
+      }),
+
+      mk("Partner • Clients generated $X in past 30 days","partner_clients_generated",{
+        trigger:["30-day revenue window per partner"],
+        actions:["Performance report email","Invite strategy call"],
+        tools:["DB/Analytics","ESP","Calendly"],
+        conditions:["Threshold buckets: $1k/$10k/$50k+"]
+      }),
+
+      mk("Partner • Payout successful","partner_payout_success",{
+        trigger:["Payout processed"],
+        actions:["Confirmation email + receipt","Update partner ledger"],
+        tools:["Payments (Stripe/PayPal)","DB ledger","ESP"],
+        conditions:["N/A"]
+      }),
+    ]
+  },
+
+  {
+    id:"owner", type:"category", label:"Owner (Zapier text automation / dashboard notif)", css:"owner",
+    children:[
+      mk("Owner • Partner requested a payout","owner_partner_requested",{
+        trigger:["Partner submits payout request"],
+        actions:["Notify owner via SMS/Slack","Create approval task","Auto-validate KYC & balance"],
+        tools:["Zapier (Webhook)","Slack/Twilio","Airtable/Jira task"],
+        conditions:["Block if KYC missing"]
+      }),
+
+      mk("Owner • Partner submitted a ticket","owner_partner_ticket",{
+        trigger:["Partner support ticket created"],
+        actions:["Route to correct inbox","Notify CSM","SLA timer start"],
+        tools:["Helpdesk (Zendesk/Intercom)","Slack","Zapier (routing rules)"],
+        conditions:["Priority based on tier"]
+      }),
+
+      mk("Owner • Partner booked a call with rep","owner_partner_booked",{
+        trigger:["Calendly booking created"],
+        actions:["Add to CRM","Notify rep & owner","Create meeting notes doc"],
+        tools:["Calendly","Zapier","HubSpot/Airtable","Google Docs"],
+        conditions:["Avoid duplicates if rescheduled"]
+      }),
+
+      mk("Owner • Brand submitted a ticket","owner_brand_ticket",{
+        trigger:["Brand ticket created"],
+        actions:["Notify owner and assigned AM","Attach account context"],
+        tools:["Helpdesk","Slack","DB enrichment via Zapier"],
+        conditions:["Escalate if VIP"]
+      }),
+
+      mk("Owner • Affiliate submitted a ticket","owner_affiliate_ticket",{
+        trigger:["Affiliate ticket created"],
+        actions:["Owner text notif","Assign to Affiliate Support"],
+        tools:["Helpdesk","Twilio/Slack","Zapier"],
+        conditions:["De-dupe multiple tickets in 1h"]
+      }),
+    ]
+  },
+];
+
+function mk(name, id, detail, disabled=false){
+  return {id, type:"automation", label:name, detail, disabled};
+}
+
+// ---------- RENDER TREE ----------
+const treeEl = document.getElementById('tree');
+const detailEl = document.getElementById('detail');
+
+function createNode(item, parentCss){
+  const li = document.createElement('li');
+  const node = document.createElement('div');
+  node.className = `node ${item.css||parentCss||''} ${item.disabled?'disabled':''}`;
+  node.dataset.id=item.id;
+  node.innerHTML = `<span class="bullet"></span><span>${item.label}</span>${item.note?` <span class="small"> — ${item.note}</span>`:''}`;
+  li.appendChild(node);
+
+  if(item.children && item.children.length){
+    const children = document.createElement('ul');
+    children.className='children';
+    item.children.forEach(ch => children.appendChild(createNode(ch, item.css)));
+    li.appendChild(children);
+    node.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      node.classList.toggle('open');
+    });
+  }else{
+    node.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if(item.disabled) { showDetail(item, true); return; }
+      showDetail(item);
+    });
+  }
+  return li;
+}
+
+function renderTree(){
+  treeEl.innerHTML='';
+  DATA.forEach(cat => treeEl.appendChild(createNode(cat)));
+}
+renderTree();
+
+// ---------- DETAIL PANE ----------
+function showDetail(item, disabled=false){
+  const d = item.detail || {};
+  const chips = (arr)=> (arr||[]).map(v=>`<li>${escapeHtml(v)}</li>`).join('');
+  detailEl.innerHTML = `
+    <div class="title">${escapeHtml(item.label)}</div>
+    ${disabled? `<div class="card"><h4>Status</h4><div class="small">Blocked until API sharing constraint is solved. Consider: private webhook proxy, event relay, or read-only list sync.</div></div>`:''}
+    <div class="grid">
+      <div class="card"><h4>Triggers</h4><ul class="clean">${chips(d.trigger)}</ul></div>
+      <div class="card"><h4>Conditions</h4><ul class="clean">${chips(d.conditions)}</ul></div>
+      <div class="card"><h4>Actions</h4><ul class="clean">${chips(d.actions)}</ul></div>
+      <div class="card"><h4>Tools</h4><ul class="clean">${chips(d.tools)}</ul></div>
+    </div>
+    <div class="card">
+      <h4>Implementation Notes</h4>
+      <ul class="clean">
+        <li>Use <code>Zapier</code> for cross-app orchestration and retries.</li>
+        <li>Track state in <code>Airtable</code> or your DB to avoid duplicate sends.</li>
+        <li>Prefer <code>webhooks</code> over polling where possible.</li>
+        <li>All user messaging via <code>Klaviyo/Omnisend</code> segments with clear exit rules.</li>
+      </ul>
+    </div>
+  `;
+}
+
+// ---------- SEARCH ----------
+document.getElementById('search').addEventListener('input', (e)=>{
+  const q = e.target.value.toLowerCase();
+  [...document.querySelectorAll('.node')].forEach(n=>{
+    const text = n.innerText.toLowerCase();
+    const match = text.includes(q);
+    n.parentElement.style.display = match? 'block':'none';
+  });
+});
+
+// ---------- EXPAND/COLLAPSE ----------
+document.getElementById('expand').addEventListener('click', ()=>{
+  document.querySelectorAll('.node').forEach(n=> n.classList.add('open'));
+  document.querySelectorAll('.children').forEach(c=> c.style.display='block');
+});
+document.getElementById('collapse').addEventListener('click', ()=>{
+  document.querySelectorAll('.node').forEach(n=> n.classList.remove('open'));
+  document.querySelectorAll('.children').forEach(c=> c.style.display='none');
+});
+
+function escapeHtml(s){
+  return (s||"").replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+</script>
+</body>
+</html>
